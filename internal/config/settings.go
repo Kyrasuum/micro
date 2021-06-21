@@ -274,6 +274,7 @@ var defaultCommonSettings = map[string]interface{}{
 	"indentchar":     " ",
 	"keepautoindent": false,
 	"matchbrace":     true,
+	"folding":        true,
 	"mkparents":      false,
 	"permbackup":     false,
 	"readonly":       false,

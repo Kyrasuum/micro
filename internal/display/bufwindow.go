@@ -144,6 +144,9 @@ func (w *BufWindow) updateDisplayInfo() {
 	if b.Settings["ruler"].(bool) {
 		w.gutterOffset += w.maxLineNumLength + 1
 	}
+	if b.Settings["folding"].(bool) {
+		w.gutterOffset += 2
+	}
 
 	w.bufWidth = w.Width - w.gutterOffset
 	if w.Buf.Settings["scrollbar"].(bool) && w.Buf.LinesNum() > w.Height {
@@ -258,6 +261,33 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 	return w.LocFromVLoc(vloc)
 }
 
+func (w *BufWindow) drawFoldingArea(backgroundStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
+	endline := w.Buf.GetFoldingData(bloc.Y-1)
+	if endline > 0 && w.Buf.IsFolded(bloc.Y-1) {
+		bloc.Y = endline
+	}
+}
+
+func (w *BufWindow) drawFoldingButton(backgroundStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
+	char := ' '
+	style := backgroundStyle
+	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, style)
+	screen.SetContent(w.X+vloc.X+1, w.Y+vloc.Y, char, nil, style)
+
+	endline := w.Buf.GetFoldingData(bloc.Y)
+	if endline > 0 {
+		char = 'v' //Downwards arrow
+
+		if w.Buf.IsFolded(bloc.Y) {
+			char = '>' //Rightwards arrow
+		}
+		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, style)
+	}
+
+	vloc.X++
+	vloc.X++
+}
+
 func (w *BufWindow) drawGutter(vloc *buffer.Loc, bloc *buffer.Loc) {
 	char := ' '
 	s := config.DefStyle
@@ -362,6 +392,11 @@ func (w *BufWindow) displayBuffer() {
 
 	maxWidth := w.gutterOffset + w.bufWidth
 
+	if b.Settings["folding"].(bool) && (b.GutterOffset == 0 || b.ModifiedThisFrame) {
+		b.FindFoldingRegions()
+	}
+	b.GutterOffset = w.gutterOffset
+
 	if b.ModifiedThisFrame {
 		if b.Settings["diffgutter"].(bool) {
 			b.UpdateDiff(func(synchronous bool) {
@@ -458,6 +493,9 @@ func (w *BufWindow) displayBuffer() {
 		}
 
 		if vloc.Y >= 0 {
+			if b.Settings["folding"].(bool) {
+				w.drawFoldingArea(s, false, &vloc, &bloc)
+			}
 			if w.hasMessage {
 				w.drawGutter(&vloc, &bloc)
 			}
@@ -468,6 +506,9 @@ func (w *BufWindow) displayBuffer() {
 
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(s, false, &vloc, &bloc)
+			}
+			if b.Settings["folding"].(bool) {
+				w.drawFoldingButton(s, false, &vloc, &bloc)
 			}
 		} else {
 			vloc.X = w.gutterOffset
@@ -564,6 +605,9 @@ func (w *BufWindow) displayBuffer() {
 
 		wrap := func() {
 			vloc.X = 0
+			if b.Settings["folding"].(bool) {
+				w.drawFoldingArea(lineNumStyle, true, &vloc, &bloc)
+			}
 			if w.hasMessage {
 				w.drawGutter(&vloc, &bloc)
 			}
@@ -574,6 +618,9 @@ func (w *BufWindow) displayBuffer() {
 			// This will draw an empty line number because the current line is wrapped
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(lineNumStyle, true, &vloc, &bloc)
+			}
+			if b.Settings["folding"].(bool) {
+				w.drawFoldingButton(s, false, &vloc, &bloc)
 			}
 		}
 

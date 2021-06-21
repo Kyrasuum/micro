@@ -54,6 +54,12 @@ func luaImportMicro() *lua.LTable {
 	ulua.L.SetField(pkg, "Tabs", luar.New(ulua.L, func() *action.TabList {
 		return action.Tabs
 	}))
+	ulua.L.SetField(pkg, "PaneName", luar.New(ulua.L, func(curpane *action.BufPane) string {
+		return curpane.Name()
+	}))
+	ulua.L.SetField(pkg, "TabPanels", luar.New(ulua.L, func(curtab *action.Tab) []action.Pane {
+		return curtab.Panes
+	}))
 	ulua.L.SetField(pkg, "Lock", luar.New(ulua.L, ulua.Lock))
 
 	return pkg
@@ -109,7 +115,7 @@ func luaImportMicroShell() *lua.LTable {
 
 func luaImportMicroBuffer() *lua.LTable {
 	pkg := ulua.L.NewTable()
-
+	
 	ulua.L.SetField(pkg, "NewMessage", luar.New(ulua.L, buffer.NewMessage))
 	ulua.L.SetField(pkg, "NewMessageAtLine", luar.New(ulua.L, buffer.NewMessageAtLine))
 	ulua.L.SetField(pkg, "MTInfo", luar.New(ulua.L, buffer.MTInfo))

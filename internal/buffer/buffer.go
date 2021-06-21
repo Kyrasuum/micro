@@ -190,6 +190,9 @@ type Buffer struct {
 	curCursor   int
 	StartCursor Loc
 
+	// kind of hacky way to retrieve gutter offset for mouse events
+	GutterOffset int
+
 	// OptionCallback is called after a buffer option value is changed.
 	// The display module registers its OptionCallback to ensure the buffer window
 	// is properly updated when needed. This is a workaround for the fact that
@@ -1033,6 +1036,80 @@ func (b *Buffer) FindMatchingBrace(braceType [2]rune, start Loc) (Loc, bool, boo
 		}
 	}
 	return start, true, false
+}
+
+// (Re)Calculates the folding regions on each line of the buffer
+// potentially unsafe to use stored data unless each insert operation is tracked
+func (b *Buffer) FindFoldingRegions() {
+	var folds []Fold
+	depth := 0
+	if b.Settings["folding"].(bool) {
+		for i := 0; i < b.LinesNum(); i++ {
+			curIndent := len(util.GetLeadingWhitespace(b.LineBytes(i)))
+			prevIndent := curIndent
+			nexIndent := curIndent
+
+			b.LineArray.lines[i].fold_struct = nil
+
+			if i-1 > 0 {
+				prevIndent = len(util.GetLeadingWhitespace(b.LineBytes(i-1)))
+			}
+			if i+1 < b.LinesNum() {
+				nexIndent = len(util.GetLeadingWhitespace(b.LineBytes(i+1)))
+			}
+			
+			if curIndent < nexIndent {
+				folds = append(folds, Fold{
+					spacing: curIndent,
+					start:   i,
+					end:     i+1,
+					folded:  false,
+				})
+				b.LineArray.lines[i].fold_struct = &folds[len(folds) - 1]
+				depth++
+			}
+			if curIndent < prevIndent && folds[len(folds) - depth].spacing >= curIndent {
+				folds[len(folds) - depth].end = i
+				depth--
+			}
+		}
+	}
+	for ; depth > 0; depth-- {
+		folds[len(folds) - depth].end = b.LinesNum()
+	}
+}
+
+// Retrieves the folding data for given line
+// returns -1 on not a folding region
+// returns end of a folding region otherwise
+func (b *Buffer) GetFoldingData(line int) int {
+	if line < 0 || line >= b.LinesNum() {
+		return -1
+	}
+	if nil != b.LineArray.lines[line].fold_struct {
+		return b.LineArray.lines[line].fold_struct.end
+	}
+	return -1
+}
+
+func (b *Buffer) IsFolded(line int) bool {
+	if line < 0 || line >= b.LinesNum() {
+		return false
+	}
+	if nil != b.LineArray.lines[line].fold_struct {
+		return b.LineArray.lines[line].fold_struct.folded
+	}
+	return false
+}
+
+func (b *Buffer) ToggleFold(line int) {
+	if line < 0 || line >= b.LinesNum() {
+		return
+	}
+	fstruct := b.LineArray.lines[line].fold_struct
+	if nil != fstruct {
+		fstruct.folded = !fstruct.folded
+	}
 }
 
 // Retab changes all tabs to spaces or vice versa
