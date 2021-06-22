@@ -1039,7 +1039,7 @@ func (b *Buffer) FindMatchingBrace(braceType [2]rune, start Loc) (Loc, bool, boo
 }
 
 // (Re)Calculates the folding regions on each line of the buffer
-// potentially unsafe to use stored data unless each insert operation is tracked
+// potentially unsafe to use stored data unless each buffer data operation is tracked
 func (b *Buffer) FindFoldingRegions() {
 	var folds []Fold
 	depth := 0
@@ -1110,6 +1110,43 @@ func (b *Buffer) ToggleFold(line int) {
 	if nil != fstruct {
 		fstruct.folded = !fstruct.folded
 	}
+	for i := line + 1; i < b.LinesNum(); i++ {
+		fold_size := fstruct.end - fstruct.start - 1
+		if fstruct.folded {
+			b.LineArray.lines[i].fold_offset += fold_size
+		} else {
+			b.LineArray.lines[i].fold_offset -= fold_size
+		}
+	}
+}
+
+func (b *Buffer) GetFoldedY(line int) int {
+	if line < 0 || line >= b.LinesNum() {
+		return -1
+	}
+	if b.LineArray.lines[line].fold_offset == 0 {
+		return line
+	}
+	
+	nline := line
+	offset := b.LineArray.lines[line].fold_offset
+	for ;true; {
+		if offset == 0 {
+			break
+		}
+		line = nline
+		nline += offset
+		if (nline >= b.LinesNum()){
+			nline = b.LinesNum() - 1
+		}
+		offset = b.LineArray.lines[nline].fold_offset - b.LineArray.lines[line].fold_offset
+	}
+
+	if (nline >= b.LinesNum()){
+		nline = b.LinesNum() - 1
+	}
+
+	return nline
 }
 
 // Retab changes all tabs to spaces or vice versa

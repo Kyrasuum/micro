@@ -47,9 +47,10 @@ type Line struct {
 
 	state       highlight.State
 	match       highlight.LineMatch
-	fold_struct	*Fold
 	rehighlight bool
 	lock        sync.Mutex
+	fold_struct	*Fold
+	fold_offset int
 }
 
 const (
@@ -144,6 +145,7 @@ func NewLineArray(size uint64, endings FileFormat, reader io.Reader) *LineArray 
 					match:       nil,
 					rehighlight: false,
 					fold_struct: nil,
+					fold_offset: 0,
 				})
 			}
 			// Last line was read
@@ -155,6 +157,7 @@ func NewLineArray(size uint64, endings FileFormat, reader io.Reader) *LineArray 
 				match:       nil,
 				rehighlight: false,
 				fold_struct: nil,
+				fold_offset: 0,
 			})
 		}
 		n++
@@ -189,6 +192,7 @@ func (la *LineArray) newlineBelow(y int) {
 		match:       nil,
 		rehighlight: false,
 		fold_struct: nil,
+		fold_offset: 0,
 	})
 	copy(la.lines[y+2:], la.lines[y+1:])
 	la.lines[y+1] = Line{
@@ -197,6 +201,7 @@ func (la *LineArray) newlineBelow(y int) {
 		match:       nil,
 		rehighlight: false,
 		fold_struct: nil,
+		fold_offset: 0,
 	}
 }
 
