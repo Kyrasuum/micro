@@ -34,10 +34,12 @@ func runeToByteIndex(n int, txt []byte) int {
 
 // Used to keep track of code folding regions
 type Fold struct {
-	spacing int
-	start   int
-	end     int
-	folded  bool
+	spacing 	int
+	start   	int
+	end     	int
+	folded  	bool
+	iparent		int
+	num_childs 	int
 }
 
 // A Line contains the data in bytes as well as a highlight state, match
@@ -50,7 +52,7 @@ type Line struct {
 	rehighlight bool
 	lock        sync.Mutex
 	fold_struct	*Fold
-	fold_offset int
+	fold_parent int
 }
 
 const (
@@ -145,7 +147,7 @@ func NewLineArray(size uint64, endings FileFormat, reader io.Reader) *LineArray 
 					match:       nil,
 					rehighlight: false,
 					fold_struct: nil,
-					fold_offset: 0,
+					fold_parent: -1,
 				})
 			}
 			// Last line was read
@@ -157,7 +159,7 @@ func NewLineArray(size uint64, endings FileFormat, reader io.Reader) *LineArray 
 				match:       nil,
 				rehighlight: false,
 				fold_struct: nil,
-				fold_offset: 0,
+				fold_parent: -1,
 			})
 		}
 		n++
@@ -192,7 +194,7 @@ func (la *LineArray) newlineBelow(y int) {
 		match:       nil,
 		rehighlight: false,
 		fold_struct: nil,
-		fold_offset: 0,
+		fold_parent: -1,
 	})
 	copy(la.lines[y+2:], la.lines[y+1:])
 	la.lines[y+1] = Line{
@@ -201,7 +203,7 @@ func (la *LineArray) newlineBelow(y int) {
 		match:       nil,
 		rehighlight: false,
 		fold_struct: nil,
-		fold_offset: 0,
+		fold_parent: -1,
 	}
 }
 

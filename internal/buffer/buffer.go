@@ -190,8 +190,13 @@ type Buffer struct {
 	curCursor   int
 	StartCursor Loc
 
-	// kind of hacky way to retrieve gutter offset for mouse events
-	GutterOffset int
+	// kind of hacky way to retrieve offsets for mouse events needed due to folding
+	GutterOffset *int
+	ScrollOffset *int
+	LineNumbers  *[]int
+
+	// flag for if any folding regions are present in current file
+	HasFolds 	bool
 
 	// OptionCallback is called after a buffer option value is changed.
 	// The display module registers its OptionCallback to ensure the buffer window
@@ -1041,7 +1046,11 @@ func (b *Buffer) FindMatchingBrace(braceType [2]rune, start Loc) (Loc, bool, boo
 // (Re)Calculates the folding regions on each line of the buffer
 // potentially unsafe to use stored data unless each buffer data operation is tracked
 func (b *Buffer) FindFoldingRegions() {
-	var folds []Fold
+	if !b.Settings["folding"].(bool) {
+		return
+	}
+	folds := []*Fold{}
+	index_last_child := -1
 	depth := 0
 	if b.Settings["folding"].(bool) {
 		for i := 0; i < b.LinesNum(); i++ {
@@ -1049,104 +1058,223 @@ func (b *Buffer) FindFoldingRegions() {
 			prevIndent := curIndent
 			nexIndent := curIndent
 
-			b.LineArray.lines[i].fold_struct = nil
-
+			//check bounds
 			if i-1 > 0 {
 				prevIndent = len(util.GetLeadingWhitespace(b.LineBytes(i-1)))
+				//check for blank lines
+				if prevIndent == len(b.LineBytes(i-1)) {
+					prevIndent = curIndent
+				}
 			}
 			if i+1 < b.LinesNum() {
 				nexIndent = len(util.GetLeadingWhitespace(b.LineBytes(i+1)))
+				//check for blank lines
+				if nexIndent == len(b.LineBytes(i+1)) {
+					nexIndent = curIndent
+				}
 			}
-			
+
+			//check for blank lines
+			if curIndent == len(b.LineBytes(i)) {
+				continue
+			}
+
+			// case of:
+			// 		previous line
+			// current line
+			if curIndent < prevIndent {
+				for index_last_child >= 0 && folds[index_last_child].spacing >= curIndent {
+					//set end of fold
+					child := folds[index_last_child]
+					folds[len(folds) - 1 - child.num_childs].end = i
+					depth--
+					index_last_child = child.iparent
+				}
+			}
+			// case of:
+			// current line
+			// 		next line
 			if curIndent < nexIndent {
-				folds = append(folds, Fold{
-					spacing: curIndent,
-					start:   i,
-					end:     i+1,
-					folded:  false,
-				})
-				b.LineArray.lines[i].fold_struct = &folds[len(folds) - 1]
+				//create current child structure
+				var child *Fold
+				if b.LineArray.lines[i].fold_struct == nil {
+					child = new(Fold)
+					b.LineArray.lines[i].fold_struct = child
+				} else {
+					child = b.LineArray.lines[i].fold_struct
+				}
+				child.spacing = curIndent
+				child.start = i
+				child.end = i+1
+				child.num_childs = 0
+				child.iparent = -1
+				//keep track of parents and childs
+				if depth != 0 {
+					child.iparent = index_last_child
+					parent := folds[index_last_child]
+					parent.num_childs++
+					
+					for j := depth; j > 1; j-- {
+						parent = folds[parent.iparent]
+						parent.num_childs++
+					}
+				}
+				//add to folds and store last child
+				folds = append(folds, child)
+				index_last_child = len(folds) - 1
 				depth++
+			} else {
+				b.LineArray.lines[i].fold_struct = nil
 			}
-			if curIndent < prevIndent && folds[len(folds) - depth].spacing >= curIndent {
-				folds[len(folds) - depth].end = i
-				depth--
+			if index_last_child >= 0 {
+				b.LineArray.lines[i].fold_parent = folds[index_last_child].start
 			}
 		}
 	}
+	//correct for folds that go off screen
 	for ; depth > 0; depth-- {
-		folds[len(folds) - depth].end = b.LinesNum()
+		//set end of fold
+		child := folds[index_last_child]
+		for j := depth; j > 1; j-- {
+			child = folds[child.iparent]
+		}
+		folds[len(folds) - 1 - child.num_childs].end = b.LinesNum()
+	}
+	//translate from folds array to line numbers so parent information is still useful
+	for i := 0; i < len(folds); i++ {
+		if folds[i].iparent >= 0 {
+			folds[i].iparent = folds[folds[i].iparent].start
+		}
+	}
+	//set bool so overall buffer knows there are folds
+	if (len(folds) > 0) {
+		b.HasFolds = true
+	} else {
+		b.HasFolds = false
 	}
 }
 
-// Retrieves the folding data for given line
-// returns -1 on not a folding region
-// returns end of a folding region otherwise
-func (b *Buffer) GetFoldingData(line int) int {
-	if line < 0 || line >= b.LinesNum() {
-		return -1
+// returns true if line number is a line where folding starts
+// returns false otherwise
+func (b *Buffer) IsFoldingStart(line int) bool {
+	if !b.Settings["folding"].(bool) {
+		return false
 	}
-	if nil != b.LineArray.lines[line].fold_struct {
-		return b.LineArray.lines[line].fold_struct.end
-	}
-	return -1
-}
-
-func (b *Buffer) IsFolded(line int) bool {
 	if line < 0 || line >= b.LinesNum() {
 		return false
 	}
 	if nil != b.LineArray.lines[line].fold_struct {
-		return b.LineArray.lines[line].fold_struct.folded
+		return true
 	}
 	return false
 }
 
-func (b *Buffer) ToggleFold(line int) {
-	if line < 0 || line >= b.LinesNum() {
-		return
+// Retrieves the folding end for given line
+// returns -1 on not a folding region
+func (b *Buffer) GetFoldingEnd(line int) int {
+	if !b.Settings["folding"].(bool) {
+		return -1
 	}
-	fstruct := b.LineArray.lines[line].fold_struct
-	if nil != fstruct {
-		fstruct.folded = !fstruct.folded
-	}
-	for i := line + 1; i < b.LinesNum(); i++ {
-		fold_size := fstruct.end - fstruct.start - 1
-		if fstruct.folded {
-			b.LineArray.lines[i].fold_offset += fold_size
-		} else {
-			b.LineArray.lines[i].fold_offset -= fold_size
-		}
-	}
-}
-
-func (b *Buffer) GetFoldedY(line int) int {
 	if line < 0 || line >= b.LinesNum() {
 		return -1
 	}
-	if b.LineArray.lines[line].fold_offset == 0 {
-		return line
+	//retrieve fold end line
+	var fstruct *Fold
+	if b.LineArray.lines[line].fold_parent >= 0 {
+		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
+	} else {
+		return -1
+	}
+
+	parent := fstruct
+	for parent.iparent >= 0 {
+		parent = b.LineArray.lines[parent.iparent].fold_struct
+		if parent.folded {
+			fstruct = parent
+		}
 	}
 	
-	nline := line
-	offset := b.LineArray.lines[line].fold_offset
-	for ;true; {
-		if offset == 0 {
-			break
-		}
-		line = nline
-		nline += offset
-		if (nline >= b.LinesNum()){
-			nline = b.LinesNum() - 1
-		}
-		offset = b.LineArray.lines[nline].fold_offset - b.LineArray.lines[line].fold_offset
+	//return
+	return fstruct.end
+}
+
+// Retrieves the folding start for given line
+// returns -1 on not a folding region
+func (b *Buffer) GetFoldingStart(line int) int {
+	if !b.Settings["folding"].(bool) {
+		return -1
+	}
+	if line < 0 || line >= b.LinesNum() {
+		return -1
+	}
+	//retrieve fold end line
+	var fstruct *Fold
+	if b.LineArray.lines[line].fold_parent >= 0 {
+		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
+	} else {
+		return -1
 	}
 
-	if (nline >= b.LinesNum()){
-		nline = b.LinesNum() - 1
+	parent := fstruct
+	for parent.iparent >= 0 {
+		parent = b.LineArray.lines[parent.iparent].fold_struct
+		if parent.folded {
+			fstruct = parent
+		}
+	}
+	
+	//return
+	return fstruct.start
+}
+
+// checks if line is currently folded
+// returns false if line cannot be folded
+func (b *Buffer) IsFolded(line int) bool {
+	if !b.Settings["folding"].(bool) {
+		return false
+	}
+	if line < 0 || line >= b.LinesNum() {
+		return false
+	}
+	//retrieve current lines folding struct or containing
+	var fstruct *Fold
+	if b.LineArray.lines[line].fold_parent >= 0 {
+		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
+	} else {
+		return false
 	}
 
-	return nline
+	parent := fstruct
+	for parent.iparent >= 0 {
+		parent = b.LineArray.lines[parent.iparent].fold_struct
+		if parent.folded {
+			fstruct = parent
+		}
+	}
+	
+	//return
+	return fstruct.folded
+}
+
+// toggles the fold on current line
+// does nothing if cannot fold here
+func (b *Buffer) ToggleFold(line int) {
+	if !b.Settings["folding"].(bool) {
+		return
+	}
+	if line < 0 || line >= b.LinesNum() {
+		return
+	}
+
+	//get fold struct
+	fstruct := b.LineArray.lines[line].fold_struct
+	if nil == fstruct {
+		if b.LineArray.lines[line].fold_parent < 0 {
+			return
+		}
+		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
+	}
+	fstruct.folded = !fstruct.folded
 }
 
 // Retab changes all tabs to spaces or vice versa

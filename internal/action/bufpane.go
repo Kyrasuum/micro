@@ -359,16 +359,17 @@ func (h *BufPane) HandleEvent(event tcell.Event) {
 		cancel := false
 		switch e.Buttons() {
 		case tcell.Button1:
-			_, my := e.Position()
+			mx, my := e.Position()
 			if h.Buf.Type.Kind != buffer.BTInfo.Kind && h.Buf.Settings["statusline"].(bool) && my >= h.GetView().Y+h.GetView().Height-1 {
 				cancel = true
 			}
-			// my = h.Buf.GetFoldedY(my)
-			// if h.Buf.Type.Kind != buffer.BTInfo.Kind && h.Buf.Settings["folding"].(bool) && mx < h.GetView().X + h.Buf.GutterOffset &&
-				// mx > h.GetView().X + h.Buf.GutterOffset - 3 && h.Buf.GetFoldingData(my) > 0 {
-					// cancel = true
-					// h.Buf.ToggleFold(my)
-			// }
+			if h.Buf.Type.Kind != buffer.BTInfo.Kind && h.Buf.Settings["folding"].(bool) && mx < h.GetView().X + *h.Buf.GutterOffset && mx > h.GetView().X + *h.Buf.GutterOffset - 4 {
+				scrolled_my := (*h.Buf.LineNumbers)[my]
+				if h.Buf.IsFoldingStart(scrolled_my) && h.Buf.GetFoldingEnd(scrolled_my) > 0 {
+					cancel = true
+					h.Buf.ToggleFold(scrolled_my)
+				}
+			}
 		case tcell.ButtonNone:
 			// Mouse event with no click
 			if !h.mouseReleased {

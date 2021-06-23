@@ -29,6 +29,7 @@ type BufWindow struct {
 	hasMessage       bool
 	maxLineNumLength int
 	drawDivider      bool
+	LineNumbers      []int
 }
 
 // NewBufWindow creates a new window at a location in the screen with a width and height
@@ -144,7 +145,7 @@ func (w *BufWindow) updateDisplayInfo() {
 	if b.Settings["ruler"].(bool) {
 		w.gutterOffset += w.maxLineNumLength + 1
 	}
-	if b.Settings["folding"].(bool) {
+	if b.HasFolds {
 		w.gutterOffset += 2
 	}
 
@@ -255,7 +256,8 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 		vx = 0
 	}
 	vloc := VLoc{
-		SLoc:    w.Scroll(w.StartLine, w.Buf.GetFoldedY(svloc.Y-w.Y)),
+		// SLoc:    w.Scroll(w.StartLine, svloc.Y-w.Y),
+		SLoc:	 w.Scroll(w.StartLine, w.LineNumbers[svloc.Y-w.Y] - w.StartLine.Line),
 		VisualX: vx + w.StartCol,
 	}
 	
@@ -263,7 +265,7 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 }
 
 func (w *BufWindow) drawFoldingArea(backgroundStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
-	endline := w.Buf.GetFoldingData(bloc.Y-1)
+	endline := w.Buf.GetFoldingEnd(bloc.Y-1)
 	if endline > 0 && w.Buf.IsFolded(bloc.Y-1) {
 		bloc.Y = endline
 	}
@@ -275,10 +277,9 @@ func (w *BufWindow) drawFoldingButton(backgroundStyle tcell.Style, softwrapped b
 	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, style)
 	screen.SetContent(w.X+vloc.X+1, w.Y+vloc.Y, char, nil, style)
 
-	endline := w.Buf.GetFoldingData(bloc.Y)
-	if endline > 0 {
+	endline := w.Buf.GetFoldingEnd(bloc.Y)
+	if w.Buf.IsFoldingStart(bloc.Y) && endline > 0 {
 		char = 'v' //Downwards arrow
-
 		if w.Buf.IsFolded(bloc.Y) {
 			char = '>' //Rightwards arrow
 		}
@@ -335,6 +336,7 @@ func (w *BufWindow) drawDiffGutter(backgroundStyle tcell.Style, softwrapped bool
 
 func (w *BufWindow) drawLineNum(lineNumStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
 	cursorLine := w.Buf.GetActiveCursor().Loc.Y
+	w.LineNumbers = append(w.LineNumbers, bloc.Y)
 	var lineInt int
 	if w.Buf.Settings["relativeruler"] == false || cursorLine == bloc.Y {
 		lineInt = bloc.Y + 1
@@ -393,10 +395,15 @@ func (w *BufWindow) displayBuffer() {
 
 	maxWidth := w.gutterOffset + w.bufWidth
 
-	if b.Settings["folding"].(bool) && (b.GutterOffset == 0 || b.ModifiedThisFrame) {
+	//find code folding regions
+	if b.Settings["folding"].(bool) && (b.GutterOffset == nil || b.ModifiedThisFrame) {
 		b.FindFoldingRegions()
 	}
-	b.GutterOffset = w.gutterOffset
+	//update some pointers that expose parts of window (needed due to code folding)
+	b.ScrollOffset = &w.StartLine.Line
+	b.GutterOffset = &w.gutterOffset
+	b.LineNumbers = &w.LineNumbers
+	w.LineNumbers = nil
 
 	if b.ModifiedThisFrame {
 		if b.Settings["diffgutter"].(bool) {
@@ -494,7 +501,7 @@ func (w *BufWindow) displayBuffer() {
 		}
 
 		if vloc.Y >= 0 {
-			if b.Settings["folding"].(bool) {
+			if b.Settings["folding"].(bool) && b.HasFolds {
 				w.drawFoldingArea(s, false, &vloc, &bloc)
 			}
 			if w.hasMessage {
@@ -508,7 +515,7 @@ func (w *BufWindow) displayBuffer() {
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(s, false, &vloc, &bloc)
 			}
-			if b.Settings["folding"].(bool) {
+			if b.Settings["folding"].(bool) && b.HasFolds {
 				w.drawFoldingButton(s, false, &vloc, &bloc)
 			}
 		} else {
@@ -606,7 +613,7 @@ func (w *BufWindow) displayBuffer() {
 
 		wrap := func() {
 			vloc.X = 0
-			if b.Settings["folding"].(bool) {
+			if b.Settings["folding"].(bool) && b.HasFolds {
 				w.drawFoldingArea(lineNumStyle, true, &vloc, &bloc)
 			}
 			if w.hasMessage {
@@ -620,7 +627,7 @@ func (w *BufWindow) displayBuffer() {
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(lineNumStyle, true, &vloc, &bloc)
 			}
-			if b.Settings["folding"].(bool) {
+			if b.Settings["folding"].(bool) && b.HasFolds {
 				w.drawFoldingButton(s, false, &vloc, &bloc)
 			}
 		}
