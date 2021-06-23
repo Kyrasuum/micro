@@ -257,7 +257,7 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 	}
 	vloc := VLoc{
 		// SLoc:    w.Scroll(w.StartLine, svloc.Y-w.Y),
-		SLoc:	 w.Scroll(w.StartLine, w.LineNumbers[svloc.Y-w.Y] - w.StartLine.Line),
+		SLoc:	 w.Scroll(w.StartLine, svloc.Y-w.Y),
 		VisualX: vx + w.StartCol,
 	}
 	

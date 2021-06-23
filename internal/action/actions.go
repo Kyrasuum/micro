@@ -17,6 +17,39 @@ import (
 	"github.com/zyedidia/tcell/v2"
 )
 
+func (h *BufPane) FoldCurrent() bool {
+	if h.Buf.GetFoldingStart(h.Cursor.Y - 1) >= 0 && !h.Buf.IsFoldingStart(h.Cursor.Y) && !h.Buf.IsFolded(h.Cursor.Y - 1) {
+		h.Buf.ToggleFold(h.Cursor.Y - 1)
+		h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y - 1)
+		h.Cursor.End()
+		h.Relocate()
+	} else if h.Buf.GetFoldingStart(h.Cursor.Y) >= 0 {
+		if h.Buf.IsFolded(h.Cursor.Y) {
+			h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y)
+			h.Cursor.End()
+			h.Relocate()
+		}
+		h.Buf.ToggleFold(h.Cursor.Y)
+		h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y)
+		h.Cursor.End()
+		h.Relocate()
+	}
+	return true
+}
+
+func (h *BufPane) UnFoldCurrent() bool {
+	if h.Buf.GetFoldingEnd(h.Cursor.Y) != h.Cursor.Y && h.Buf.GetFoldingStart(h.Cursor.Y) != h.Cursor.Y {
+		if h.Buf.IsFolded(h.Cursor.Y-1) {
+			h.Buf.ToggleFold(h.Cursor.Y-1)
+		}
+	} else {
+		if h.Buf.IsFolded(h.Cursor.Y) {
+			h.Buf.ToggleFold(h.Cursor.Y)
+		}
+	}
+	return true
+}
+
 // ScrollUp is not an action
 func (h *BufPane) ScrollUp(n int) {
 	v := h.GetView()
@@ -165,7 +198,11 @@ func (h *BufPane) MoveCursorDown(n int) {
 // CursorUp moves the cursor up
 func (h *BufPane) CursorUp() bool {
 	h.Cursor.Deselect(true)
-	h.MoveCursorUp(1)
+	n := 1
+	if h.Buf.IsFolded(h.Cursor.Y - 1) {
+		n = h.Cursor.Y - h.Buf.GetFoldingStart(h.Cursor.Y - 1)
+	}
+	h.MoveCursorUp(n)
 	h.Relocate()
 	return true
 }
@@ -173,7 +210,11 @@ func (h *BufPane) CursorUp() bool {
 // CursorDown moves the cursor down
 func (h *BufPane) CursorDown() bool {
 	h.Cursor.Deselect(true)
-	h.MoveCursorDown(1)
+	n := -1
+	if h.Buf.IsFolded(h.Cursor.Y) {
+		n = h.Cursor.Y - h.Buf.GetFoldingEnd(h.Cursor.Y)
+	}
+	h.MoveCursorUp(n)
 	h.Relocate()
 	return true
 }

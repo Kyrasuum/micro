@@ -591,6 +591,8 @@ func (h *BufPane) SetActive(b bool) {
 
 // BufKeyActions contains the list of all possible key actions the bufhandler could execute
 var BufKeyActions = map[string]BufKeyAction{
+	"FoldCurrent":				 (*BufPane).FoldCurrent,
+	"UnFoldCurrent":			 (*BufPane).UnFoldCurrent,
 	"CursorUp":                  (*BufPane).CursorUp,
 	"CursorDown":                (*BufPane).CursorDown,
 	"CursorPageUp":              (*BufPane).CursorPageUp,
