@@ -819,4 +819,8 @@ func (w *BufWindow) Display() {
 	w.displayScrollBar()
 	w.displayBuffer()
 	w.displayStatusLine()
+	err := config.RunPluginFn("onDisplay")
+	if err != nil {
+		screen.TermMessage(err)
+	}
 }

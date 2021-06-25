@@ -1163,6 +1163,10 @@ func (b *Buffer) IsFoldingStart(line int) bool {
 	if line < 0 || line >= b.LinesNum() {
 		return false
 	}
+	//folded data has not been updated yet
+	if b.ModifiedThisFrame {
+		return false
+	}
 	if nil != b.LineArray.lines[line].fold_struct {
 		return true
 	}
@@ -1178,23 +1182,31 @@ func (b *Buffer) GetFoldingEnd(line int) int {
 	if line < 0 || line >= b.LinesNum() {
 		return -1
 	}
+	//folded data has not been updated yet
+	if b.ModifiedThisFrame {
+		return -1
+	}
 	//retrieve fold end line
-	var fstruct *Fold
+	var fstruct *Fold = nil
 	if b.LineArray.lines[line].fold_parent >= 0 {
 		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
-	} else {
+	}
+	if nil == fstruct {
 		return -1
 	}
 
 	parent := fstruct
 	for parent.iparent >= 0 {
 		parent = b.LineArray.lines[parent.iparent].fold_struct
-		if parent.folded {
+		if nil != parent && parent.folded {
 			fstruct = parent
 		}
 	}
 	
 	//return
+	if nil == fstruct {
+		return -1
+	}
 	return fstruct.end
 }
 
@@ -1207,23 +1219,31 @@ func (b *Buffer) GetFoldingStart(line int) int {
 	if line < 0 || line >= b.LinesNum() {
 		return -1
 	}
+	//folded data has not been updated yet
+	if b.ModifiedThisFrame {
+		return -1
+	}
 	//retrieve fold end line
-	var fstruct *Fold
+	var fstruct *Fold = nil
 	if b.LineArray.lines[line].fold_parent >= 0 {
 		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
-	} else {
+	}
+	if nil == fstruct {
 		return -1
 	}
 
 	parent := fstruct
 	for parent.iparent >= 0 {
 		parent = b.LineArray.lines[parent.iparent].fold_struct
-		if parent.folded {
+		if nil != parent && parent.folded {
 			fstruct = parent
 		}
 	}
 	
 	//return
+	if nil == fstruct {
+		return -1
+	}
 	return fstruct.start
 }
 
@@ -1236,23 +1256,31 @@ func (b *Buffer) IsFolded(line int) bool {
 	if line < 0 || line >= b.LinesNum() {
 		return false
 	}
+	//folded data has not been updated yet
+	if b.ModifiedThisFrame {
+		return false
+	}
 	//retrieve current lines folding struct or containing
-	var fstruct *Fold
+	var fstruct *Fold = nil
 	if b.LineArray.lines[line].fold_parent >= 0 {
 		fstruct = b.LineArray.lines[b.LineArray.lines[line].fold_parent].fold_struct
-	} else {
+	}
+	if nil == fstruct {
 		return false
 	}
 
 	parent := fstruct
 	for parent.iparent >= 0 {
 		parent = b.LineArray.lines[parent.iparent].fold_struct
-		if parent.folded {
+		if nil != parent && parent.folded {
 			fstruct = parent
 		}
 	}
 	
 	//return
+	if nil == fstruct {
+		return false
+	}
 	return fstruct.folded
 }
 
@@ -1263,6 +1291,10 @@ func (b *Buffer) ToggleFold(line int) {
 		return
 	}
 	if line < 0 || line >= b.LinesNum() {
+		return
+	}
+	//folded data has not been updated yet
+	if b.ModifiedThisFrame {
 		return
 	}
 

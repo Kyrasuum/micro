@@ -1,9 +1,11 @@
 module github.com/zyedidia/micro/v2
 
 require (
+	github.com/Kyrasuum/micro v1.4.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-errors/errors v1.0.1
+	github.com/karalabe/xgo v0.0.0-20191115072854-c5ccff8648a7 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-isatty v0.0.11
 	github.com/mattn/go-runewidth v0.0.7
