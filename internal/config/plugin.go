@@ -131,7 +131,7 @@ func (p *Plugin) Call(fn string, args ...lua.LValue) (lua.LValue, error) {
 
 // FindPlugin returns the plugin with the given name
 func FindPlugin(name string) *Plugin {
-	var pl *Plugin
+	var pl *Plugin = nil
 	for _, p := range Plugins {
 		if !p.IsEnabled() {
 			continue

@@ -29,7 +29,6 @@ type BufWindow struct {
 	hasMessage       bool
 	maxLineNumLength int
 	drawDivider      bool
-	LineNumbers      []int
 }
 
 // NewBufWindow creates a new window at a location in the screen with a width and height
@@ -256,7 +255,6 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 		vx = 0
 	}
 	vloc := VLoc{
-		// SLoc:    w.Scroll(w.StartLine, svloc.Y-w.Y),
 		SLoc:	 w.Scroll(w.StartLine, svloc.Y-w.Y),
 		VisualX: vx + w.StartCol,
 	}
@@ -265,10 +263,6 @@ func (w *BufWindow) LocFromVisual(svloc buffer.Loc) buffer.Loc {
 }
 
 func (w *BufWindow) drawFoldingArea(backgroundStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
-	endline := w.Buf.GetFoldingEnd(bloc.Y-1)
-	if endline > 0 && w.Buf.IsFolded(bloc.Y-1) {
-		bloc.Y = endline
-	}
 }
 
 func (w *BufWindow) drawFoldingButton(backgroundStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
@@ -276,15 +270,6 @@ func (w *BufWindow) drawFoldingButton(backgroundStyle tcell.Style, softwrapped b
 	style := backgroundStyle
 	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, style)
 	screen.SetContent(w.X+vloc.X+1, w.Y+vloc.Y, char, nil, style)
-
-	endline := w.Buf.GetFoldingEnd(bloc.Y)
-	if w.Buf.IsFoldingStart(bloc.Y) && endline > 0 {
-		char = 'v' //Downwards arrow
-		if w.Buf.IsFolded(bloc.Y) {
-			char = '>' //Rightwards arrow
-		}
-		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, char, nil, style)
-	}
 
 	vloc.X++
 	vloc.X++
@@ -336,7 +321,6 @@ func (w *BufWindow) drawDiffGutter(backgroundStyle tcell.Style, softwrapped bool
 
 func (w *BufWindow) drawLineNum(lineNumStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
 	cursorLine := w.Buf.GetActiveCursor().Loc.Y
-	w.LineNumbers = append(w.LineNumbers, bloc.Y)
 	var lineInt int
 	if w.Buf.Settings["relativeruler"] == false || cursorLine == bloc.Y {
 		lineInt = bloc.Y + 1
@@ -396,14 +380,9 @@ func (w *BufWindow) displayBuffer() {
 	maxWidth := w.gutterOffset + w.bufWidth
 
 	//find code folding regions
-	if b.Settings["folding"].(bool) && (b.GutterOffset == nil || b.ModifiedThisFrame) {
+	if b.Settings["folding"].(bool) && (b.ModifiedThisFrame) {
 		b.FindFoldingRegions()
 	}
-	//update some pointers that expose parts of window (needed due to code folding)
-	b.ScrollOffset = &w.StartLine.Line
-	b.GutterOffset = &w.gutterOffset
-	b.LineNumbers = &w.LineNumbers
-	w.LineNumbers = nil
 
 	if b.ModifiedThisFrame {
 		if b.Settings["diffgutter"].(bool) {

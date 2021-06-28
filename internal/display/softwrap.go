@@ -269,19 +269,7 @@ func (w *BufWindow) diff(s1, s2 SLoc) int {
 // within the buffer boundaries.
 func (w *BufWindow) Scroll(s SLoc, n int) SLoc {
 	if !w.Buf.Settings["softwrap"].(bool) {
-		if len(w.LineNumbers) > 0 {
-			if n >= 0 && n < len(w.LineNumbers) {
-				s.Line = w.LineNumbers[n]
-			} else {
-				if w.Buf.IsFolded(s.Line+n) {
-					s.Line = w.Buf.GetFoldingStart(s.Line + n) + 1 + n
-				} else {
-					s.Line += n
-				}
-			}
-		} else {
-			s.Line += n
-		}
+		s.Line += n
 		if s.Line < 0 {
 			s.Line = 0
 		}

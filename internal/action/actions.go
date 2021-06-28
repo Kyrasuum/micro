@@ -18,35 +18,10 @@ import (
 )
 
 func (h *BufPane) FoldCurrent() bool {
-	if h.Buf.GetFoldingStart(h.Cursor.Y - 1) >= 0 && !h.Buf.IsFoldingStart(h.Cursor.Y) && !h.Buf.IsFolded(h.Cursor.Y - 1) {
-		h.Buf.ToggleFold(h.Cursor.Y - 1)
-		h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y - 1)
-		h.Cursor.End()
-		h.Relocate()
-	} else if h.Buf.GetFoldingStart(h.Cursor.Y) >= 0 {
-		if h.Buf.IsFolded(h.Cursor.Y) {
-			h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y)
-			h.Cursor.End()
-			h.Relocate()
-		}
-		h.Buf.ToggleFold(h.Cursor.Y)
-		h.Cursor.Y = h.Buf.GetFoldingEnd(h.Cursor.Y)
-		h.Cursor.End()
-		h.Relocate()
-	}
 	return true
 }
 
 func (h *BufPane) UnFoldCurrent() bool {
-	if h.Buf.GetFoldingEnd(h.Cursor.Y) != h.Cursor.Y && h.Buf.GetFoldingStart(h.Cursor.Y) != h.Cursor.Y {
-		if h.Buf.IsFolded(h.Cursor.Y-1) {
-			h.Buf.ToggleFold(h.Cursor.Y-1)
-		}
-	} else {
-		if h.Buf.IsFolded(h.Cursor.Y) {
-			h.Buf.ToggleFold(h.Cursor.Y)
-		}
-	}
 	return true
 }
 
@@ -199,9 +174,6 @@ func (h *BufPane) MoveCursorDown(n int) {
 func (h *BufPane) CursorUp() bool {
 	h.Cursor.Deselect(true)
 	n := 1
-	if h.Buf.IsFolded(h.Cursor.Y - 1) {
-		n = h.Cursor.Y - h.Buf.GetFoldingStart(h.Cursor.Y - 1)
-	}
 	h.MoveCursorUp(n)
 	h.Relocate()
 	return true
@@ -211,9 +183,6 @@ func (h *BufPane) CursorUp() bool {
 func (h *BufPane) CursorDown() bool {
 	h.Cursor.Deselect(true)
 	n := -1
-	if h.Buf.IsFolded(h.Cursor.Y) {
-		n = h.Cursor.Y - h.Buf.GetFoldingEnd(h.Cursor.Y)
-	}
 	h.MoveCursorUp(n)
 	h.Relocate()
 	return true
@@ -758,14 +727,11 @@ func (h *BufPane) Autocomplete() bool {
 		b.CycleAutocomplete(true)
 		return true
 	}
-	switch b.FileType() {
-		case "c++":
-			return b.Autocomplete(buffer.BufferCompleteClang)
-		case "c":
-			return b.Autocomplete(buffer.BufferCompleteClang)
-		default:
-			return b.Autocomplete(buffer.BufferComplete)
+	
+	if _,ac := buffer.AutoComps[b.FileType()]; ac {
+		return b.Autocomplete(buffer.AutoCompleterPlugin)
 	}
+	return b.Autocomplete(buffer.BufferComplete)
 }
 
 // CycleAutocompleteBack cycles back in the autocomplete suggestion list
