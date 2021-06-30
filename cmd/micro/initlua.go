@@ -2,6 +2,10 @@ package main
 
 import (
 	"log"
+	"bufio"
+    "fmt"
+    "io"
+    "os/exec"
 
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"
@@ -19,6 +23,22 @@ import (
 func init() {
 	ulua.L = lua.NewState()
 	ulua.L.SetGlobal("import", luar.New(ulua.L, LuaImport))
+}
+
+func copyOutput(r io.Reader) {
+    scanner := bufio.NewScanner(r)
+    for scanner.Scan() {
+        fmt.Println(scanner.Text())
+    }
+}
+
+func execPython(args ...string) string {
+	cmd := exec.Command("python3.8", args...)
+	out, err := cmd.CombinedOutput()
+    if err != nil {
+    	return err.Error()
+    }
+    return string(out)
 }
 
 // LuaImport is meant to be called from lua by a plugin and will import the given micro package
@@ -54,13 +74,25 @@ func luaImportMicro() *lua.LTable {
 	ulua.L.SetField(pkg, "Tabs", luar.New(ulua.L, func() *action.TabList {
 		return action.Tabs
 	}))
-	ulua.L.SetField(pkg, "PaneName", luar.New(ulua.L, func(curpane *action.BufPane) string {
-		return curpane.Name()
+	ulua.L.SetField(pkg, "PaneFilePath", luar.New(ulua.L, func(curpane action.Pane) string {
+		return curpane.(*action.BufPane).Buf.SharedBuffer.AbsPath
 	}))
-	ulua.L.SetField(pkg, "TabPanels", luar.New(ulua.L, func(curtab *action.Tab) []action.Pane {
+	ulua.L.SetField(pkg, "PaneBuffContents", luar.New(ulua.L, func(curpane action.Pane) string {
+		cont := ""
+		buff := curpane.(*action.BufPane).Buf
+		for i := 0; i < buff.LinesNum(); i++ {
+			cont += string(buff.LineBytes(i)) + "\n"
+		}
+		return cont
+	}))
+	ulua.L.SetField(pkg, "PaneCursorPosition", luar.New(ulua.L, func(curpane action.Pane) (int, int) {
+		return curpane.(*action.BufPane).Cursor.Loc.X, curpane.(*action.BufPane).Cursor.Loc.Y
+	}))
+	ulua.L.SetField(pkg, "TabPanels", luar.New(ulua.L, func(curtab action.Tab) []action.Pane {
 		return curtab.Panes
 	}))
 	ulua.L.SetField(pkg, "Lock", luar.New(ulua.L, ulua.Lock))
+	ulua.L.SetField(pkg, "ExecPython", luar.New(ulua.L, execPython))
 
 	return pkg
 }

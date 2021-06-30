@@ -226,6 +226,7 @@ func AutoCompleterPlugin(b *Buffer) ([]string, []string) {
 			
 			return completions, suggestions
 		}
+		return []string{err.Error(), "", ""}, []string{"", "", ""}
 	}
 	return BufferComplete(b)
 }
