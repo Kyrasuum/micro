@@ -138,13 +138,16 @@ func (w *BufWindow) updateDisplayInfo() {
 
 	// We need to know the string length of the largest line number
 	// so we can pad appropriately when displaying line numbers
-	w.maxLineNumLength = 1 + len(strconv.Itoa(b.LinesNum()))
+	w.maxLineNumLength = len(strconv.Itoa(b.LinesNum()))
 
 	w.gutterOffset = 0
 	if w.hasMessage {
 		w.gutterOffset += 2
 	}
 	if b.Settings["diffgutter"].(bool) {
+		w.gutterOffset++
+	}
+	if b.Settings["folding"].(bool) {
 		w.gutterOffset++
 	}
 	if b.Settings["ruler"].(bool) {
@@ -321,6 +324,22 @@ func (w *BufWindow) drawDiffGutter(backgroundStyle tcell.Style, softwrapped bool
 	vloc.X++
 }
 
+func (w *BufWindow) drawFoldSymbol(lineNumStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
+	// Indicate if this is a collapsed region
+	fold := ' '
+	if w.Buf.FoldCollapsible(bloc.Y) && !softwrapped {
+		if w.Buf.Collapsed(bloc.Y) {
+			fold = '^'
+		} else {
+			fold = '>'
+		}
+	} else if w.Buf.FoldCollapseEnd(bloc.Y) {
+		fold = ' '
+	}
+	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, fold, nil, lineNumStyle)
+	vloc.X++
+}
+
 func (w *BufWindow) drawLineNum(lineNumStyle tcell.Style, softwrapped bool, vloc *buffer.Loc, bloc *buffer.Loc) {
 	cursorLine := w.Buf.GetActiveCursor().Loc.Y
 	var lineInt int
@@ -331,21 +350,8 @@ func (w *BufWindow) drawLineNum(lineNumStyle tcell.Style, softwrapped bool, vloc
 	}
 	lineNum := []rune(strconv.Itoa(util.Abs(lineInt)))
 
-	// Indicate if this is a collapsed region
-	fold := ' '
-	if w.Buf.FoldCollapsible(bloc.Y) {
-		if w.Buf.Collapsed(bloc.Y) {
-			fold = '+'
-		} else {
-			fold = '-'
-		}
-	} else if w.Buf.FoldCollapseEnd(bloc.Y) {
-		fold = '^'
-	}
-	screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, fold, nil, lineNumStyle)
-	vloc.X++
 	// Write the spaces before the line number if necessary
-	for i := 0; i < w.maxLineNumLength-1-len(lineNum) && vloc.X < w.gutterOffset; i++ {
+	for i := 0; i < w.maxLineNumLength-len(lineNum) && vloc.X < w.gutterOffset; i++ {
 		screen.SetContent(w.X+vloc.X, w.Y+vloc.Y, ' ', nil, lineNumStyle)
 		vloc.X++
 	}
@@ -509,6 +515,10 @@ func (w *BufWindow) displayBuffer() {
 				w.drawDiffGutter(s, false, &vloc, &bloc)
 			}
 
+			if b.Settings["ruler"].(bool) && b.Settings["folding"].(bool) {
+				w.drawFoldSymbol(s, false, &vloc, &bloc)
+			}
+
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(s, false, &vloc, &bloc)
 			}
@@ -666,6 +676,11 @@ func (w *BufWindow) displayBuffer() {
 				w.drawDiffGutter(lineNumStyle, true, &vloc, &bloc)
 			}
 
+			// This will draw an empty space because the current line is wrapped
+			if b.Settings["ruler"].(bool) && b.Settings["folding"].(bool) {
+				w.drawFoldSymbol(s, false, &vloc, &bloc)
+			}
+
 			// This will draw an empty line number because the current line is wrapped
 			if b.Settings["ruler"].(bool) {
 				w.drawLineNum(lineNumStyle, true, &vloc, &bloc)
@@ -794,6 +809,10 @@ func (w *BufWindow) displayBuffer() {
 		if vloc.X != maxWidth {
 			// Display newline within a selection
 			draw(' ', nil, config.DefStyle, true, true)
+		}
+		if vloc.X != maxWidth && w.Buf.Collapsed(bloc.Y) {
+			bloc.X++
+			draw('┅', nil, config.DefStyle, true, true)
 		}
 
 		bloc.X = w.StartCol

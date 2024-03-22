@@ -78,6 +78,7 @@ var defaultCommonSettings = map[string]interface{}{
 	"reload":          "prompt",
 	"rmtrailingws":    false,
 	"ruler":           true,
+	"folding":         true,
 	"relativeruler":   false,
 	"savecursor":      false,
 	"saveundo":        false,
